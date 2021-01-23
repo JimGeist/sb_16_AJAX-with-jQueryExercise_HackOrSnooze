@@ -1,0 +1,76 @@
+I don't see any error messaging -- if the user types in a bad password, the form just sits there.
+
+
+
+
+
+OK  Add username nav-welcome
+OK  Clicking on username should reveal 'User Profile Info' 
+Build navigation: | submit | favorites | my stories 
+ (make navigation so clicking reveals / conceals instead of having to click on Hack or Snooze (probably need to 
+ invoke a refresh so articles and changes appear too)
+
+OK added navigation (#nav-curruser)" | submit | favorites | my stories " to html document
+
+after adding article with submit:
+clear the form
+hide the form
+refresh the page
+
+
+
+need to:
+OK remove the time from user profile created date
+
+
+
+Hannah Ellis-Petersen
+Boaty McBoatface Wins Poll to Name Polar Research Vessel 
+https://www.theguardian.com/environment/2016/apr/17/boaty-mcboatface-wins-poll-to-name-polar-research-vessel
+
+
+Nora McGreevy 
+How Will Amazon’s Planned Satellite Megaconstellation Impact the Night Sky?
+https://www.smithsonianmag.com/smart-news/amazons-planned-network-3236-satellites-worrying-astronomers-180975560/
+
+
+Alexis C. Madrigal
+Your Smart Toaster Can’t Hold a Candle to the Apollo Computer
+https://www.theatlantic.com/science/archive/2019/07/underappreciated-power-apollo-computer/594121/
+
+
+Tonya Malinowski
+Mission Accomplished (Ellison Onizuka's soccer ball makes it into space)
+http://www.espn.com/espn/feature/story/_/id/23902766/nasa-astronaut-ellison-onizuka-soccer-ball-survived-challenger-explosion
+
+
+Author: Jamie Lynch
+The Worst Computer Bugs in History: The Ariane 5 Disaster
+https://www.bugsnag.com/blog/bug-day-ariane-5-disaster
+
+
+currentUser.
+	User {username: "JimG", name: "Jim Geist", createdAt: "2021-01-18T01:29:18.111Z", updatedAt: "2021-01-19T03:21:28.276Z", loginToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZ…2MjJ9.SJXDAl6nQyDItPhBYBGG53wUeUN1rRcZVtnR5SoZ6Hs", …}
+	createdAt: "2021-01-18T01:29:18.111Z"
+	favorites: []
+	loginToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IkppbUciLCJpYXQiOjE2MTEwMTk2MjJ9.SJXDAl6nQyDItPhBYBGG53wUeUN1rRcZVtnR5SoZ6Hs"
+	name: "Jim Geist"
+	ownStories: [Story]
+	updatedAt: "2021-01-19T03:21:28.276Z"
+	username: "JimG"
+
+response.
+config: {url: "https://hack-or-snooze-v3.herokuapp.com/stories", method: "post", data: "{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ…zuka-soccer-ball-survived-challenger-explosion"}}", headers: {…}, transformRequest: Array(1), …}
+data:
+	story:
+		author: "Tonya Malinowski"
+		createdAt: "2021-01-19T03:55:21.684Z"
+		storyId: "7dbc1d9f-6cc7-41b1-a7e4-b0211bd2e1e4"
+		title: "Mission Accomplished (Ellison Onizuka's soccer ball makes it into space)"
+		updatedAt: "2021-01-19T03:55:21.684Z"
+		url: "http://www.espn.com/espn/feature/story/_/id/23902766/nasa-astronaut-ellison-onizuka-soccer-ball-survived-challenger-explosion"
+		username: "JimG"
+headers: {content-length: "401", content-type: "application/json; charset=utf-8"}
+request: XMLHttpRequest {readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, onreadystatechange: ƒ, …}
+status: 201
+statusText: "Created"

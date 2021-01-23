@@ -187,6 +187,27 @@ form > hr {
   margin-left: 25px;
 }
 
+.fav-ind,
+.del-ind {
+  font-size: 1.0rem;
+  font-weight: normal;
+  padding: 0 0.2rem 0 0.25rem;
+}
+
+.del-ind:hover {
+  text-decoration: underline;
+  background-color: rgb(226, 226, 205);
+}
+
+.msg-error {
+  color: #aa0000;
+}
+
+.fav-msg, 
+.own-msg {
+  padding: 1em 1em 0 1em;
+}
+
 #favorited-articles,
 #filtered-articles,
 #my-articles {

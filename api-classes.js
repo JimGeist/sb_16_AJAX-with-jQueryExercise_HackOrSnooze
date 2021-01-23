@@ -43,11 +43,62 @@ class StoryList {
    * Returns the new story object
    */
 
-  async addStory(user, newStory) {
+  static async addStory(inUser, newStory) {
     // TODO - Implement this functions!
     // this function should return the newly created story so it can be used in
     // the script.js file where it will be appended to the DOM
+
+    const response = await axios.post(`${BASE_URL}/stories`, {
+      token: inUser.loginToken,
+      story: {
+        author: newStory.author,
+        title: newStory.title,
+        url: newStory.url
+      }
+
+    });
+
+    console.dir(response);
+
+    if (response.status === 201) {
+      // The story was inserted by the user. We need to update the inUser object 
+      //  ownStories with the story details return by the api.
+      inUser.ownStories.push(new Story(response.data.story));
+      return response.data.story;
+    }
+
   }
+
+
+  static async deleteStory(inUser, inStoryId) {
+
+    const response = await axios.delete(`${BASE_URL}/stories/${inStoryId}`, {
+      headers: {
+        Authorization: "token"
+      },
+      data: {
+        token: inUser.loginToken
+      }
+    });
+
+    if (response.status === 200) {
+      console.log("in delete story api call: response=");
+      console.dir(response);
+
+      // the story was deleted. We need to update inUser's ownStories by 
+      //  removing the story that was just deleted.
+      const newOwnStories = inUser.ownStories.filter(story => story.storyId !== inStoryId);
+      inUser.ownStories = newOwnStories;
+
+      return response;
+
+    }
+
+
+  }
+
+
+
 }
 
 
@@ -150,8 +201,59 @@ class User {
     existingUser.favorites = response.data.user.favorites.map(s => new Story(s));
     existingUser.ownStories = response.data.user.stories.map(s => new Story(s));
     return existingUser;
+
   }
+
+
+  static async favoriteAdd(inCurrUser, inStoryId) {
+
+    const response = await axios.post(`${BASE_URL}/users/${inCurrUser.username}/favorites/${inStoryId}`, {
+      token: inCurrUser.loginToken
+    });
+
+    inCurrUser.favorites = response.data.user.favorites.map(s => new Story(s));
+
+    console.log("in favoriteAdd: response=");
+    console.dir(response);
+    return response;
+
+  }
+
+  static async favoriteDelete(inCurrUser, inStoryId) {
+
+    const response = await axios.delete(`${BASE_URL}/users/${inCurrUser.username}/favorites/${inStoryId}`, {
+      headers: {
+        Authorization: "token"
+      },
+      data: {
+        token: inCurrUser.loginToken
+      }
+    });
+
+    inCurrUser.favorites = response.data.user.favorites.map(s => new Story(s));
+
+    console.log("in favoriteDelete: response=");
+    console.dir(response);
+    return response;
+
+  }
+
+  static isFavorite(inFavStories, inStoryId) {
+
+    // inFavStories is an array of story objects. We need to check whether 
+    //  inStoryId is a storyId for one of the favorite stories.
+
+    const foundStory = inFavStories.some(currStory =>
+      currStory.storyId === inStoryId
+    )
+
+    return foundStory;
+
+
+  }
+
 }
+
 
 /**
  * Class to represent a single story.
