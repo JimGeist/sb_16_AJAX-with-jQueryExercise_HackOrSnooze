@@ -205,7 +205,7 @@ form > hr {
 
 .fav-msg, 
 .own-msg {
-  padding: 1em 1em 0 1em;
+  padding: 0em 1em 0.25em 1em;
 }
 
 #favorited-articles,

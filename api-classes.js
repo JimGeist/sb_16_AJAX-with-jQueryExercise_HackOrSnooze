@@ -48,26 +48,34 @@ class StoryList {
     // this function should return the newly created story so it can be used in
     // the script.js file where it will be appended to the DOM
 
-    const response = await axios.post(`${BASE_URL}/stories`, {
-      token: inUser.loginToken,
-      story: {
-        author: newStory.author,
-        title: newStory.title,
-        url: newStory.url
+    try {
+
+      const response = await axios.post(`${BASE_URL}/stories`, {
+        token: inUser.loginToken,
+        story: {
+          author: newStory.author,
+          title: newStory.title,
+          url: newStory.url
+        }
+
+      });
+
+      console.dir(response);
+
+      if (response.status === 201) {
+        // The story was inserted by the user. We need to update the inUser object 
+        //  ownStories with the story details return by the api.
+        inUser.ownStories.push(new Story(response.data.story));
+        return response.data.story;
       }
 
-    });
-
-    console.dir(response);
-
-    if (response.status === 201) {
-      // The story was inserted by the user. We need to update the inUser object 
-      //  ownStories with the story details return by the api.
-      inUser.ownStories.push(new Story(response.data.story));
-      return response.data.story;
+    } catch (error) {
+      console.log("an error occurred");
+      console.dir(error);
     }
 
-  }
+
+  };
 
 
   static async deleteStory(inUser, inStoryId) {

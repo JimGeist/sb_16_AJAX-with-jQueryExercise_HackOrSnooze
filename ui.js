@@ -15,6 +15,9 @@ $(async function () {
   const $navUserProfile = $("#nav-user-profile");
   const $sectUserProfile = $("#user-profile");
 
+  const IDPREFIX_FAV = "--fav--";
+  const IDPREFIX_OWN = "--own--";
+
   const FAV_TEXTYES = "&#9733;"; // html filled star
   const FAV_TEXTNO = "&#9734;";  // html empty star
   const FAV_CLASS = "fav-ind";
@@ -32,10 +35,10 @@ $(async function () {
   // global currentUser variable
   let currentUser = null;
 
-  // global favorite defaults. These are set to empty star (text) and fav-ind (class)
-  //  when someone logs in.
-  let favText = "";
-  let favClass = "";
+  // // global favorite defaults. These are set to empty star (text) and fav-ind (class)
+  // //  when someone logs in.
+  // let favText = "";
+  // let favClass = "";
 
   await checkIfLoggedIn();
 
@@ -56,9 +59,6 @@ $(async function () {
     const userInstance = await User.login(username, password);
     // set the global user to the user instance
     currentUser = userInstance;
-
-    // logged in users can see the star to mark/unmark favorites
-    //setLoggedInUserGlobals();
 
     populateNavUserProfile();
     syncCurrentUserToLocalStorage();
@@ -84,7 +84,6 @@ $(async function () {
     const newUser = await User.create(username, password, name);
     currentUser = newUser;
 
-    //setLoggedInUserGlobals();
     populateNavUserProfile();
     syncCurrentUserToLocalStorage();
     loginAndSubmitForm();
@@ -98,7 +97,7 @@ $(async function () {
 
   $navUserProfile.on("click", function () {
 
-    hideSomeElements([$submitForm, $filteredArticles, $ownStories, $loginForm, $createAccountForm]);
+    hideSomeElements([$submitForm, $filteredArticles, $favStories, $ownStories, $loginForm, $createAccountForm]);
 
     if (currentUser) {
 
@@ -181,7 +180,9 @@ $(async function () {
 
     hideSomeElements([$submitForm, $filteredArticles, $ownStories, $loginForm, $createAccountForm, $sectUserProfile]);
 
-    displayArticles("#favorited-articles", FAV_MSGCLASS, `There are no articles tagged, ${FAV_TEXTYES}, as favorites.`, currentUser.favorites, FAV_TEXTYES, FAV_CLASS);
+    displayArticles("#favorited-articles", FAV_MSGCLASS,
+      `There are no favorite articles tagged with a ${FAV_TEXTYES}.`, currentUser.favorites,
+      FAV_TEXTYES, `${FAV_CLASS} ${IDPREFIX_FAV}`, "", IDPREFIX_FAV);
 
     // $("#favorited-articles").empty();
 
@@ -212,16 +213,20 @@ $(async function () {
     hideSomeElements([$submitForm, $filteredArticles, $favStories, $loginForm, $createAccountForm, $sectUserProfile]);
 
     displayArticles("#my-articles", OWN_MSGCLASS, "You have not submitted any articles.",
-      currentUser.ownStories, FAV_TEXTNO, FAV_CLASS, DEL_SPAN);
+      currentUser.ownStories, FAV_TEXTNO, `${FAV_CLASS} ${IDPREFIX_OWN}`, DEL_SPAN, IDPREFIX_OWN);
 
     if (currentUser.ownStories.length > 0) {
       // click on X to delete the article
       //const delMsg = $(`<li><strong>Click on <span>${DELTEXT}</span> to delete the article.</strong></li>`);
-      $("#my-articles").prepend(`<li><h4>Click on ${DEL_TEXT} to delete the article.</h4></li>`);
+      $("#my-articles").prepend(`<li><h4>Click on ${DEL_TEXT} to the left of the article to delete the article.</h4></li>`);
+
+      // move the h4 with class inMsgClass that was created in displayArticles to the end of the list
+      const $h4Msg = $(`h4.${OWN_MSGCLASS}`).detach();
+      $("#my-articles").append($h4Msg);
 
       // for my stories, we need to check the list and update the star to a favorite yes when 
       //  my story is a favorite.
-      setFavoriteStories(currentUser.favorites);
+      setFavoriteStories(currentUser.favorites, `span.${IDPREFIX_OWN}`, IDPREFIX_OWN);
 
     }
 
@@ -274,29 +279,39 @@ $(async function () {
   // })
 
 
-  function displayArticles(inUIListName, inMsgClass, inMsgZero, inStoryArray, inFavText, inFavClass, inDelSpan) {
+  function displayArticles(inUIListName, inMsgClass, inMsgZero, inStoryArray, inFavText, inFavClass, inDelSpan, inIdPrefix) {
 
     $(inUIListName).empty();
 
     // Is the UI list element currently hidden?
     if ($(inUIListName).css("display") === "none") {
 
-      // set up message area
-      $(inUIListName).before(`<h4 class="${inMsgClass}">&nbsp;</h4>`);
+      // inUIListName view ('favorites' or 'my stories') option selected from Navigation bar AND the
+      //  list component is currently not visible. 
+      // Make sure the all stories list is visible. 
+      $allStoriesList.show();
 
-      // loop through all of the stories in inStoryArray and generate HTML for them.
-      // FAV_TEXTYES is passed into the html generator since these are all favorites.
       $(inUIListName).empty();
+
+      // set up message area
+      $(inUIListName).append(`<h4 class="${inMsgClass}">&nbsp;</h4>`);
 
       // Are there any articles?
       if (inStoryArray.length > 0) {
+        // loop through all of the stories in inStoryArray and generate HTML for them.
+        // when called from favorites, inFavText is FAV_TEXTYES because we know all the stories the 
+        //  story array are favorites.
+        // when called from my stories, inFavText is FAV_TEXTNO because we just need the list built
+        //  and we check whether any of the owned stories are favorites upon return from displayArticles.
         for (let story of inStoryArray) {
-          const result = generateStoryHTML(story, inFavText, inFavClass, inDelSpan);
+          const result = generateStoryHTML(story, inFavText, inFavClass, inDelSpan, inIdPrefix);
           $(inUIListName).append(result);
         }
       } else {
-        const $noArticles = $("<h2>").html(inMsgZero);
-        $(inUIListName).append($noArticles);
+        // const $noArticles = $("<h2>").html(inMsgZero);
+        // $(inUIListName).append($noArticles);
+
+        $(`.${inMsgClass}`).html(inMsgZero);
 
 
       }
@@ -343,6 +358,11 @@ $(async function () {
           author: addedStory.author,
           username: addedStory.username
         }, FAV_TEXTNO, FAV_CLASS));
+
+        // Clear the inputs submit-form (article submission) inputs
+        $("#author").val("");
+        $("#title").val("");
+        $("#url").val("");
 
         $submitForm.slideToggle();
 
@@ -403,7 +423,8 @@ $(async function () {
       //FAV_MSGCLASS
       $(`.${OWN_MSGCLASS}`).html("&nbsp;");
 
-      const storyId = $(this).parent().attr("id");
+      const uiStoryId = $(this).parent().attr("id");
+      const storyId = uiStoryId.replace(IDPREFIX_OWN, "");
 
       const delResult = await StoryList.deleteStory(currentUser, storyId);
 
@@ -466,7 +487,12 @@ $(async function () {
 
     //const $inElement = $(this);
 
-    const storyId = $inElement.parent().attr("id");
+    const uiStoryId = $inElement.parent().attr("id");
+
+    // strip out any special id prefix added to make the id unique in favorite
+    //  or own windows.
+    let storyId = uiStoryId.replace(IDPREFIX_FAV, "");
+    storyId = storyId.replace(IDPREFIX_OWN, "");
 
     // Using currentUser favorites instead of favorites based on ui flag.
     //if ($favSpan.hasClass(FAV_CLASS)) {
@@ -478,6 +504,11 @@ $(async function () {
         //$inElement.html(FAV_TEXTNO);
 
         $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
+
+        // call the list handler to take care of the favorite displayed 
+        //  displayed 'favorite' or displayed 'my stories' list.
+        handleFavOrOwnLists(uiStoryId, FAV_TEXTNO);
+
 
       } else {
         // Something went wrong. Is the story id still a favorite?
@@ -508,6 +539,8 @@ $(async function () {
         console.dir(rot);
         //$inElement.html(FAV_TEXTYES);
         $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTYES);
+
+        handleFavOrOwnLists(uiStoryId, FAV_TEXTYES);
 
       } else {
         //$inElement.html(FAV_TEXTNO);
@@ -598,11 +631,10 @@ $(async function () {
     await generateStories();
 
     if (currentUser) {
-      //setLoggedInUserGlobals();
       populateNavUserProfile();
       setUpLoggedInUser();
 
-      setFavoriteStories(currentUser.favorites);
+      //setFavoriteStories(currentUser.favorites, "span", "");
       // // check the favorite storyId(s) against the listed stories and flag the story
       // //  as a favorite when necessary.
       // // An earlier version checked whether $("#..").find(`span..`).length
@@ -625,18 +657,6 @@ $(async function () {
   function populateNavUserProfile() {
     $navUserProfile.html(`</small>${currentUser.username}</small>`);
   }
-
-
-  /**
-   * Funciton sets global variables needed in order to have favorites stars appear 
-   *  besides stories in lists.
-   */
-  function setLoggedInUserGlobals() {
-
-    favText = FAV_TEXTNO;
-    favClass = FAV_CLASS;
-
-  };
 
 
   /**
@@ -675,23 +695,51 @@ $(async function () {
 
     // loop through all of our stories and generate HTML for them
     for (let story of storyList.stories) {
-      //const result = generateStoryHTML(story, favText, favClass);
       const result = generateStoryHTML(story);
       $allStoriesList.append(result);
     }
   }
 
 
+  function handleFavOrOwnLists(inStoryId, inFavText) {
+
+    if (($favStories.css("display") === "none") && ($ownStories.css("display") === "none")) {
+      return
+    }
+
+    if ($favStories.css("display") !== "none") {
+      // the favorites window is displayed.
+      // the favorite is no longer a favorite and should be removed from the list.
+      $(`#${inStoryId}`).remove();
+
+      if ($(`.${IDPREFIX_FAV}`).length === 0) {
+        // all favorites have been unfavorited.
+        $(`.${FAV_MSGCLASS}`).text("You have unfavorited all your favorites!!");
+      }
+    } else if ($ownStories.css("display") !== "none") {
+
+      $("#" + inStoryId).find(`span.${IDPREFIX_OWN}`).html(inFavText);
+
+    }
+
+
+
+
+    // call the list handler to take care of the favorite displayed 
+    //  displayed 'favorite' or displayed 'my stories' list.
+
+  };
+
   /**
    * A function to render HTML for an individual Story instance
    */
 
-  function generateStoryHTML(story, inFavText = "", inFavClass = "", inDelSpan = "") {
+  function generateStoryHTML(story, inFavText = "", inFavClass = "", inDelSpan = "", inIdPrefix = "") {
     let hostName = getHostName(story.url);
 
     // render story markup
     const storyMarkup = $(`
-      <li id="${story.storyId}">
+      <li id="${inIdPrefix}${story.storyId}">
         <span class="${inFavClass}">${inFavText}</span>${inDelSpan}<a class="article-link" href="${story.url}" target="a_blank">
           <strong>${story.title}</strong>
         </a>
@@ -746,15 +794,17 @@ $(async function () {
    * Function changes the empty star (FAV_TEXTNO) to the filled star (FAV_TEXTYES) for 
    * stories that are favorites.
    */
-  function setFavoriteStories(inFavorites) {
+  function setFavoriteStories(inFavorites, inFindWhat, inIdPrefix) {
 
     // check the favorite storyId(s) against the listed stories and flag the story
     //  as a favorite when necessary.
     // An earlier version checked whether $("#..").find(`span..`).length
     //  was > 0 and then performed $("#..").find(`span..`).html(FAV_TEXTYES)
     inFavorites.forEach(favStory => {
-      $("#" + favStory.storyId).find("span").html(FAV_TEXTYES);
-      $("#" + favStory.storyId).find("span").addClass(FAV_CLASS);
+      // $("#" + favStory.storyId).find("span").html(FAV_TEXTYES);
+      // $("#" + favStory.storyId).find("span").addClass(FAV_CLASS);
+      $(`#${inIdPrefix}${favStory.storyId}`).find(inFindWhat).html(FAV_TEXTYES);
+      $(`#${inIdPrefix}${favStory.storyId}`).find(inFindWhat).addClass(FAV_CLASS);
     });
 
   }
@@ -768,9 +818,9 @@ $(async function () {
    */
   function setUpLoggedInUser() {
 
-    // set up global values for favText and favClass
-    favText = FAV_TEXTNO;
-    favClass = FAV_CLASS;
+    // // set up global values for favText and favClass
+    // favText = FAV_TEXTNO;
+    // favClass = FAV_CLASS;
 
     showNavForLoggedInUser();
 
@@ -779,6 +829,9 @@ $(async function () {
     $allStoriesList.find("span").html(FAV_TEXTNO);
     $allStoriesList.find("span").removeClass();
     $allStoriesList.find("span").addClass(FAV_CLASS);
+
+    // set favorite text if any in list are a favorite.
+    setFavoriteStories(currentUser.favorites, "span", "");
 
   }
 
