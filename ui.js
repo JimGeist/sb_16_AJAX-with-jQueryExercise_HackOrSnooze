@@ -15,18 +15,18 @@ $(async function () {
   const $navUserProfile = $("#nav-user-profile");
   const $sectUserProfile = $("#user-profile");
 
-  const IDPREFIX_FAV = "--fav--";
-  const IDPREFIX_OWN = "--own--";
+  const IDPREFIX_FAV = "--fav--"; // prefix for Story Id in favorites list
+  const IDPREFIX_OWN = "--own--"; // prefix for Story Id in my stories list
 
-  const FAV_TEXTYES = "&#9733;"; // html filled star
-  const FAV_TEXTNO = "&#9734;";  // html empty star
-  const FAV_CLASS = "fav-ind";
-  const FAV_MSGCLASS = "fav-msg";
+  const FAV_TEXTYES = "&#9733;";  // html filled star
+  const FAV_TEXTNO = "&#9734;";   // html empty star
+  const FAV_CLASS = "fav-ind";    // class aids in jQuery selection and has css formatting attached
+  const FAV_MSGCLASS = "fav-msg"; // class aids in jQuery selection has css formats attached
 
-  const OWN_MSGCLASS = "own-msg";
+  const OWN_MSGCLASS = "own-msg"; // class aids in jQuery selection has css formats attached
 
   const DEL_TEXT = "&otimes;";    // html X with a circle around it
-  const DEL_CLASS = "del-ind"
+  const DEL_CLASS = "del-ind"     // class aids in jQuery selection and has css formatting attached
   const DEL_SPAN = `<span class="${DEL_CLASS}">${DEL_TEXT}</span>`;
 
   // global storyList variable
@@ -34,11 +34,6 @@ $(async function () {
 
   // global currentUser variable
   let currentUser = null;
-
-  // // global favorite defaults. These are set to empty star (text) and fav-ind (class)
-  // //  when someone logs in.
-  // let favText = "";
-  // let favClass = "";
 
   await checkIfLoggedIn();
 
@@ -51,18 +46,41 @@ $(async function () {
   $loginForm.on("submit", async function (evt) {
     evt.preventDefault(); // no page-refresh on submit
 
+    if ($(".loginmsg").length > 0) {
+      // clear the login message if it already exists on the form. 
+      // nbsp used so screen does not dance as the h4 element collapses because of no value
+      $(".loginmsg").html("&nbsp;");
+    }
     // grab the username and password
     const username = $("#login-username").val();
     const password = $("#login-password").val();
 
     // call the login static method to build a user instance
     const userInstance = await User.login(username, password);
-    // set the global user to the user instance
-    currentUser = userInstance;
 
-    populateNavUserProfile();
-    syncCurrentUserToLocalStorage();
-    loginAndSubmitForm();
+    if (userInstance.username) {
+
+      // set the global user to the user instance
+      currentUser = userInstance;
+
+      populateNavUserProfile();
+      syncCurrentUserToLocalStorage();
+      loginAndSubmitForm();
+
+    } else {
+
+      // An error occurred. We know this because if (userInstance.username)
+      //  tested as falsey and here we are.
+      const loginError = `${userInstance.error}: ${userInstance.errMsg}`;
+      if ($(".loginmsg").length === 0) {
+        // create the message element and populate it with the error message.
+        $loginForm.prepend(`<h4 class="loginmsg msg-error">${loginError}</h4>`);
+      } else {
+        // message already exists, just update it
+        $(".loginmsg").text(loginError);
+      }
+
+    }
 
   });
 
@@ -112,9 +130,10 @@ $(async function () {
       //  slide it out without a duration.
       let duration = 0;
       if ($sectUserProfile.css("display") === "none") {
+
         // We have to make sure all stories is displayed. Things will get weird if it is not.
-        // All stories list might have been made non-visible by another navigation option and then 
-        //  the user profile option was selected.
+        // All stories list might have been made non-visible by another opened navigation option and then 
+        //  the user profile option was selected while the other option was still opened.
         $allStoriesList.show();
         duration = 400;
       }
@@ -142,6 +161,10 @@ $(async function () {
    */
 
   $navLogin.on("click", function () {
+
+    // delete the message element. It gets created if an error occurs while handling 
+    //  the submission of the login form 
+    $(".loginmsg").remove();
     // Show the Login and Create Account Forms
     $loginForm.slideToggle();
     $createAccountForm.slideToggle();
@@ -180,27 +203,11 @@ $(async function () {
 
     hideSomeElements([$submitForm, $filteredArticles, $ownStories, $loginForm, $createAccountForm, $sectUserProfile]);
 
-    displayArticles("#favorited-articles", FAV_MSGCLASS,
-      `There are no favorite articles tagged with a ${FAV_TEXTYES}.`, currentUser.favorites,
-      FAV_TEXTYES, `${FAV_CLASS} ${IDPREFIX_FAV}`, "", IDPREFIX_FAV);
-
-    // $("#favorited-articles").empty();
-
-    // // Is the favorites list currently not displayed?
-    // if ($("#favorited-articles").css("display") === "none") {
-
-    //   // loop through all of the favorite stories and generate HTML for them.
-    //   // FAV_TEXTYES is passed into the html generator since these are all favorites.
-    //   $("#favorited-articles").empty();
-    //   for (let story of currentUser.favorites) {
-    //     const result = generateStoryHTML(story, FAV_TEXTYES, FAV_CLASS);
-    //     $("#favorited-articles").append(result);
-    //   }
-
-    // }
-
-    // $allStoriesList.slideToggle();
-    // $("#favorited-articles").slideToggle();
+    // displayArticles is a generic code block to process a list of articles on the user object. It gets a bit 
+    //  crazy parameter-wise because generateStoryHTML is also reused for 3 list purposes, and we need to pass 
+    //  values into displayArticles that are solely needed by generateStoryHTML. 
+    displayArticles($favStories, FAV_MSGCLASS, `There are no favorite articles tagged with a ${FAV_TEXTYES}.`,
+      currentUser.favorites, FAV_TEXTYES, `${FAV_CLASS} ${IDPREFIX_FAV}`, IDPREFIX_FAV);
 
   })
 
@@ -212,12 +219,15 @@ $(async function () {
 
     hideSomeElements([$submitForm, $filteredArticles, $favStories, $loginForm, $createAccountForm, $sectUserProfile]);
 
-    displayArticles("#my-articles", OWN_MSGCLASS, "You have not submitted any articles.",
-      currentUser.ownStories, FAV_TEXTNO, `${FAV_CLASS} ${IDPREFIX_OWN}`, DEL_SPAN, IDPREFIX_OWN);
+    displayArticles($ownStories, OWN_MSGCLASS, "You have not submitted any articles.",
+      currentUser.ownStories, FAV_TEXTNO, `${FAV_CLASS} ${IDPREFIX_OWN}`, IDPREFIX_OWN, DEL_SPAN);
 
+    // my stories differs from favorites because we not only need the delete span in the list, but we also need to 
+    //  determine whether any of the articles in the owned stories list are favorites. All the craziness of id
+    //  prefixes comes into play here because without the prefix on the id, we would change the favorite indicator 
+    //  in the all stories list NOT the one in the my stories. 
     if (currentUser.ownStories.length > 0) {
-      // click on X to delete the article
-      //const delMsg = $(`<li><strong>Click on <span>${DELTEXT}</span> to delete the article.</strong></li>`);
+      // Add an informational message to click on X to delete the article
       $("#my-articles").prepend(`<li><h4>Click on ${DEL_TEXT} to the left of the article to delete the article.</h4></li>`);
 
       // move the h4 with class inMsgClass that was created in displayArticles to the end of the list
@@ -230,71 +240,51 @@ $(async function () {
 
     }
 
-
-
-
-    // $("#favorited-articles").empty();
-
-    // // Is the favorites list currently not displayed?
-    // if ($("#favorited-articles").css("display") === "none") {
-
-    //   // loop through all of the favorite stories and generate HTML for them.
-    //   // FAV_TEXTYES is passed into the html generator since these are all favorites.
-    //   $("#favorited-articles").empty();
-    //   for (let story of currentUser.favorites) {
-    //     const result = generateStoryHTML(story, FAV_TEXTYES, FAV_CLASS);
-    //     $("#favorited-articles").append(result);
-    //   }
-
-    // }
-
-    // $allStoriesList.slideToggle();
-    // $("#favorited-articles").slideToggle();
-
   })
 
 
-  // $navUserLinks.on("click", "#nav-favorites", function () {
+  /** displayArticles is a generic code block to process a list of articles on the user object. It gets a bit 
+   *  crazy parameter-wise because generateStoryHTML is also reused for 3 list purposes, and we need to pass 
+   *  values into displayArticles that are solely needed by generateStoryHTML.
+   *
+   *   $inUIListName - ui list element (either $favStories or $ownStories) that will hold the stories 
+   *   inMsgClass - the class to attach to the messaging h4 created within displayArticles to display 
+   *      helpful messages. It is used to select the h4 element.
+   *   inMsgZero - the helpful message to display when there are no stories. inMsgClass is used to select 
+   *      the messsage element. 
+   *   inStoryArray - the array of stories we need to list in $inUIListName.
+   * The following 4 parameters are required for the call to generateStoryHTML
+   *   inFavText - the text to show for favorites and non-favorite articles. When building the favorite list,
+   *      inFavText is the solid-filled star -- since everything on the list is a favorite. For the owned 
+   *      stories list, it is the empty star because a process later determines whether an owned article 
+   *      is also a favorite.
+   *   inFavClass - the class to include in the span, regardless of whether the article is a favorite or not. 
+   *      inFavClass aids in selection of articles as well as formatting via css.
+   *   inIdPrefix - seems that selecting by id only returns the first instance of that id. A story in the 
+   *      favorite list will have the same id as a story in the article list. But if we use the story id 
+   *      to manipulate the story display, the article list story is encountered first (same issue exists
+   *      with owned stories). The story id for articles in the favorite story list have a --fav-- prefix 
+   *      on the story id (stories in the my stories list have --own-- as a story id prefix.)
+   *   inDelSpan - the owned story list has the ability to delete the article. We need to pass in the html 
+   *      for the span so the delete works. inDelSpan defaults to "" if a value was not passed.
+   * 
+   */
+  function displayArticles($inUIListName, inMsgClass, inMsgZero, inStoryArray, inFavText, inFavClass, inIdPrefix, inDelSpan = "") {
 
-  //   displayArticles("#nav-favorites", currentUser.favorites, FAV_TEXTYES);
-
-  //   // $("#favorited-articles").empty();
-
-  //   // // Is the favorites list currently not displayed?
-  //   // if ($("#favorited-articles").css("display") === "none") {
-
-  //   //   // loop through all of the favorite stories and generate HTML for them.
-  //   //   // FAV_TEXTYES is passed into the html generator since these are all favorites.
-  //   //   $("#favorited-articles").empty();
-  //   //   for (let story of currentUser.favorites) {
-  //   //     const result = generateStoryHTML(story, FAV_TEXTYES, FAV_CLASS);
-  //   //     $("#favorited-articles").append(result);
-  //   //   }
-
-  //   // }
-
-  //   // $allStoriesList.slideToggle();
-  //   // $("#favorited-articles").slideToggle();
-
-  // })
-
-
-  function displayArticles(inUIListName, inMsgClass, inMsgZero, inStoryArray, inFavText, inFavClass, inDelSpan, inIdPrefix) {
-
-    $(inUIListName).empty();
+    $inUIListName.empty();
 
     // Is the UI list element currently hidden?
-    if ($(inUIListName).css("display") === "none") {
+    if ($inUIListName.css("display") === "none") {
 
       // inUIListName view ('favorites' or 'my stories') option selected from Navigation bar AND the
       //  list component is currently not visible. 
       // Make sure the all stories list is visible. 
       $allStoriesList.show();
 
-      $(inUIListName).empty();
+      $inUIListName.empty();
 
       // set up message area
-      $(inUIListName).append(`<h4 class="${inMsgClass}">&nbsp;</h4>`);
+      $inUIListName.append(`<h4 class="${inMsgClass}">&nbsp;</h4>`);
 
       // Are there any articles?
       if (inStoryArray.length > 0) {
@@ -304,28 +294,22 @@ $(async function () {
         // when called from my stories, inFavText is FAV_TEXTNO because we just need the list built
         //  and we check whether any of the owned stories are favorites upon return from displayArticles.
         for (let story of inStoryArray) {
-          const result = generateStoryHTML(story, inFavText, inFavClass, inDelSpan, inIdPrefix);
-          $(inUIListName).append(result);
+          const result = generateStoryHTML(story, inFavText, inFavClass, inIdPrefix, inDelSpan);
+          $inUIListName.append(result);
         }
       } else {
-        // const $noArticles = $("<h2>").html(inMsgZero);
-        // $(inUIListName).append($noArticles);
-
+        // Stuff the inMsgZero message into the element selected via inMsgClass. This element is created 
+        //  above. It is also within inUtilListName and will get removed when the list is emptied.
         $(`.${inMsgClass}`).html(inMsgZero);
-
-
       }
 
-    } else {
-      // Remove the message because we are going from the displayed specialty list to hiding the list. 
-      // The message h4 is built whenever we transition from no display to display.
-      $(`.${inMsgClass}`).remove();
     }
 
     $allStoriesList.slideToggle();
-    $(inUIListName).slideToggle();
+    $inUIListName.slideToggle();
 
   }
+
 
   /**
   * Event handler for adding a new story / submit on story add form was clicked
@@ -339,16 +323,14 @@ $(async function () {
       url: $("#url").val().trim()
     }
 
-    console.log("submit form event: start of click event for click of button on submit form");
-
-    // make sure author, title, and url all have values before calling addStory
+    // make sure author, title, and url all have values before calling addStory. The fields are 
+    //  required on the ui, but what if that should fail?
     if ((newStory.author.length > 0) && (newStory.title.length > 0) && (newStory.url.length > 5)) {
-      console.log("submit form event: author, title, url all provided.");
+
       const addedStory = await StoryList.addStory(currentUser, newStory);
 
-      console.log("submit form event: addedStory:");
-      console.dir(addedStory);
-
+      // addStory is within a try / catch block in api-classes.js so we will end up here even if the 
+      //  catch block executed.
       if (addedStory) {
         // add the story to the page.
         $allStoriesList.prepend(generateStoryHTML({
@@ -371,8 +353,6 @@ $(async function () {
       }
 
     }
-
-    console.log("submit form event: start of click event for click of button on submit form");
 
   })
 
@@ -401,8 +381,6 @@ $(async function () {
     //  it exists before continuing.
     if (currentUser) {
       await handleFavoriting($(this));
-      // console.log("clicked on the fav");
-      // console.dir($(this));
     }
   });
 
@@ -413,36 +391,34 @@ $(async function () {
   $("section.articles-container").on("click", `span.${DEL_CLASS}`, async function () {
 
     // Deleting an article can only occur from the listing in 'my stories' from the 
-    //  navigation bar.
+    //  navigation bar. The span with the DEL_CLASS class is included in the article list 
+    //  when the list is build from the my stories list.
     // A non-logged in person should not have a means to see 'my stories' or submitted stories
     //  since authentication is required. We will still check currentUser to ensure it exists 
     //  (that is, a logged in user) before continuing.
     if (currentUser) {
 
-      // clear the message -- it may have one if we already deleted a story.
-      //FAV_MSGCLASS
+      // clear the message -- it may have one if we already deleted a story. html is used because
+      //  &nbsp; is used as a value for no message so the space never collapses when there is no 
+      //  text.
       $(`.${OWN_MSGCLASS}`).html("&nbsp;");
 
+      // uiStoryId has the --own-- prefix, storyId does not.
+      // storyId is used when deleting the story from the all stories list.
       const uiStoryId = $(this).parent().attr("id");
       const storyId = uiStoryId.replace(IDPREFIX_OWN, "");
 
       const delResult = await StoryList.deleteStory(currentUser, storyId);
 
       if (delResult) {
-        console.log("delete of a story in 'my stories' was successful");
-        console.dir(delResult);
-        //delResult.data.story;
 
         // Remove the story from the my stories list.
         $(this).parent().remove();
         // Remove the story from the all stories list.
         $(`#${storyId}`).remove();
 
+        // handy-dandy delete successful message. YOU NEED TO KEEP THE USER INFORMED.
         $(`.${OWN_MSGCLASS}`).text(`'${delResult.data.story.title}' by ${delResult.data.story.author} was successfully deleted.`);
-
-
-        // close my stories when the only article was deleted. only article is 
-        //  determined by the list in currentUser, not the ui.
 
       } else {
         console.log("delete of a story in 'my stories' was NOT successful");
@@ -452,40 +428,18 @@ $(async function () {
     }
   });
 
-  // /**
-  // * Event handler for Marking / Unmarking Favorites from favorites navigation option
-  // */
-
-  // $favStories.on("click", `span.${FAV_CLASS}`, async function () {
-
-  //   await handleFavoriting($(this));
-
-  // });
-
-  // /**
-  // * Event handler for Marking / Unmarking Favorites from main (all) storied list
-  // */
-
-  // $allStoriesList.on("click", `span.${FAV_CLASS}`, async function () {
-
-  //   await handleFavoriting($(this));
-
-  // });
-
 
   /**
    * Function handles the api call to add or remove a favorite story for the logged
-   *  in user. The function also change the favorite text on the UI to a filled 
+   *  in user. The function also changeS the favorite text on the UI to a filled 
    *  star (FAV_TEXTYES) when the story is a favorite and to the empty star when the
    *  favorite is removed from a story.
    */
   async function handleFavoriting($inElement) {
 
-    // Marking favorites can occur in three areas -- the main article list, the 
+    // Marking favorites can occur in three areas -- the all articles list, the 
     //  list when 'favorites' is selected from the navigation bar, and the list
-    //  when 'my favorites' is selected from the navigation bar.
-
-    //const $inElement = $(this);
+    //  when 'my stories' is selected from the navigation bar.
 
     const uiStoryId = $inElement.parent().attr("id");
 
@@ -495,20 +449,17 @@ $(async function () {
     storyId = storyId.replace(IDPREFIX_OWN, "");
 
     // Using currentUser favorites instead of favorites based on ui flag.
-    //if ($favSpan.hasClass(FAV_CLASS)) {
     if (User.isFavorite(currentUser.favorites, storyId)) {
-      // removing favorite
+      // remove favorite
       const rot = await User.favoriteDelete(currentUser, storyId);
       if (rot.status === 200) {
         // delete of favorite for current user was successful.
-        //$inElement.html(FAV_TEXTNO);
-
+        // change the html for the article to an empty star (FAV_TEXTNO)
         $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
 
         // call the list handler to take care of the favorite displayed 
         //  displayed 'favorite' or displayed 'my stories' list.
         handleFavOrOwnLists(uiStoryId, FAV_TEXTNO);
-
 
       } else {
         // Something went wrong. Is the story id still a favorite?
@@ -516,101 +467,37 @@ $(async function () {
           // the user information from the api still has the story 
           //  as a favorite. Make sure the ui reflects this, even though
           //  attempts were made to unfavorite it.
-          //$inElement.html(FAV_TEXTYES);
           $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTYES);
         } else {
           // Not sure what the error was, but the user information from
           //  the api no longer has the story as a favorite.
-          //$inElement.html(FAV_TEXTNO);
           $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
         }
       }
-      console.log("in ui: remove favorites: rot=");
-      console.dir(rot);
-
-      // $inElement.html(FAV_TEXTNO);
 
     } else {
       // new favorite
       const rot = await User.favoriteAdd(currentUser, storyId);
       // make sure status is 200 before making ui changes.
+
       if (rot.status === 200) {
-        console.log("in ui: add favorites: rot=");
-        console.dir(rot);
-        //$inElement.html(FAV_TEXTYES);
+        // Story was successfully added as a favorite for the user. 
+        // Update the UI all articles list
         $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTYES);
 
+        // We need to handle the favorite text on the favorites or the 
+        //  my stories listings.
         handleFavOrOwnLists(uiStoryId, FAV_TEXTYES);
 
       } else {
-        //$inElement.html(FAV_TEXTNO);
+        // Kind of rendundant since the favorite text should already be
+        //  textno.
         $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
       }
 
     }
 
   };
-
-
-
-
-  // /**
-  //  * Event handler for Marking / Unmarking Favorites
-  //  */
-
-  // $allStoriesList.on("click", `span.${FAV_CLASS}`, async function () {
-
-  //   const $favSpan = $(this);
-
-  //   const storyId = $favSpan.parent().attr("id");
-
-  //   // Using currentUser favorites instead of favorites based on ui flag.
-  //   //if ($favSpan.hasClass(FAV_CLASS)) {
-  //   if (User.isFavorite(currentUser.favorites, storyId)) {
-  //     // removing favorite
-  //     const rot = await User.favoriteDelete(currentUser, storyId);
-  //     if (rot.status === 200) {
-  //       // delete of favorite for current user was successful.
-  //       $favSpan.html(FAV_TEXTNO);
-
-  //     } else {
-  //       // Something went wrong. Is the story id still a favorite?
-  //       if (User.isFavorite(currentUser.favorites, storyId)) {
-  //         // the user information from the api still has the story 
-  //         //  as a favorite. Make sure the ui reflects this, even though
-  //         //  attempts were made to unfavorite it.
-  //         $favSpan.html(FAV_TEXTYES);
-  //       } else {
-  //         // Not sure what the error was, but the user information from
-  //         //  the api no longer has the story as a favorite.
-  //         $favSpan.html(FAV_TEXTNO);
-  //       }
-  //     }
-  //     console.log("in ui: remove favorites: rot=");
-  //     console.dir(rot);
-
-  //     $favSpan.html(FAV_TEXTNO);
-
-  //   } else {
-  //     // new favorite
-  //     const rot = await User.favoriteAdd(currentUser, storyId);
-  //     // make sure status is 200 before making ui changes.
-  //     if (rot.status === 200) {
-  //       console.log("in ui: add favorites: rot=");
-  //       console.dir(rot);
-  //       $favSpan.html(FAV_TEXTYES);
-
-  //     } else {
-  //       $favSpan.html(FAV_TEXTNO);
-  //     }
-
-  //   }
-
-
-  //  // hideElements();
-  //  // await generateStories();
-  //  // $allStoriesList.show();
-  // });
 
 
   /**
@@ -632,17 +519,14 @@ $(async function () {
 
     if (currentUser) {
       populateNavUserProfile();
-      setUpLoggedInUser();
 
-      //setFavoriteStories(currentUser.favorites, "span", "");
-      // // check the favorite storyId(s) against the listed stories and flag the story
-      // //  as a favorite when necessary.
-      // // An earlier version checked whether $("#..").find(`span..`).length
-      // //  was > 0 and then performed $("#..").find(`span..`).html(FAV_TEXTYES)
-      // currentUser.favorites.forEach(favStory => {
-      //   $("#" + favStory.storyId).find("span").html(FAV_TEXTYES);
-      //   $("#" + favStory.storyId).find("span").addClass(FAV_CLASS);
-      // });
+      // for logged in users, we need to 
+      // - show the submit, favorites, my stories options in the navigation bar 
+      // - we need to adjust the story list by adding and setting the 
+      //    favorite indicator
+      // We need to do this in one other place too, so a function was created 
+      //  to handle the setup.
+      setUpLoggedInUser();
 
     }
 
@@ -675,9 +559,16 @@ $(async function () {
     // show the stories
     $allStoriesList.show();
 
-    // update the navigation bar
+    // for logged in users, we need to 
+    // - show the submit, favorites, my stories options in the navigation bar 
+    // - we need to adjust the story list by adding and setting the 
+    //    favorite indicator
+    // We need to do this in multiple places too, so a function was created 
+    //  to handle the setup.
     setUpLoggedInUser();
+
   }
+
 
   /**
    * A rendering function to call the StoryList.getStories static method,
@@ -701,6 +592,13 @@ $(async function () {
   }
 
 
+  /** 
+   * Function handles the display of favorites in the favorites or the my stories
+   *  lists. A generic function handles the grunt work of facilitating the api calls to 
+   *  update favorites and the related updates to the all stories list, but favorites 
+   *  that are unfavorited are removed from the favorites list while they are unmarked 
+   *  in the my stories list.
+   */
   function handleFavOrOwnLists(inStoryId, inFavText) {
 
     if (($favStories.css("display") === "none") && ($ownStories.css("display") === "none")) {
@@ -722,19 +620,33 @@ $(async function () {
 
     }
 
-
-
-
-    // call the list handler to take care of the favorite displayed 
-    //  displayed 'favorite' or displayed 'my stories' list.
-
   };
 
+
   /**
-   * A function to render HTML for an individual Story instance
+   * A function to render HTML for an individual Story instance.
+   * This render function is called for the all stories list, the all stories list when someone 
+   *  is logged in, the favorites list, and the my stories list.
+   * story - the object with the author, story id, title, url, and posting user.
+   * inFavText - for all stories list, favorites list, and my stories list (all of which require a
+   *   logged in user), inFavText holds the text to show whether the story is a favorite. Value is
+   *   "" for all list when no user is logged in.
+   * inFavClass - for all stories list, favorites list, and my stories list (all of which require a
+   *   logged in user), inFavClass holds class name used to detect whether the story was clicked on 
+   *   to add or remove the favorite. The class also has css display controls attached. Value is
+   *   "" for class when no user is logged in.
+   * inIdPrefix - story ids in the favorites and my stories list need a prefix added to aid in 
+   *   selecting the story from the favorite or my stories list, depending on which is currently 
+   *   active. Without the prefix, selection based on story id will only affect the story on the 
+   *   all story list -- since the all stories list appears before favorites, filtered, or my 
+   *   stories list. Value is "" for prefix when no user is logged in or for when generateStoryHTML 
+   *   is called from generateStories to build the all stories list.
+   * inDelSpan - the complete span element to insert into the html to make the story selectable for 
+   *   delete from the my stories list. Value is only provided when the list is built for the 
+   *   my stories list and defaults to "" for all other cases.
    */
 
-  function generateStoryHTML(story, inFavText = "", inFavClass = "", inDelSpan = "", inIdPrefix = "") {
+  function generateStoryHTML(story, inFavText = "", inFavClass = "", inIdPrefix = "", inDelSpan = "") {
     let hostName = getHostName(story.url);
 
     // render story markup
@@ -790,6 +702,7 @@ $(async function () {
     $navWelcome.show();
   }
 
+
   /**
    * Function changes the empty star (FAV_TEXTNO) to the filled star (FAV_TEXTYES) for 
    * stories that are favorites.
@@ -818,10 +731,6 @@ $(async function () {
    */
   function setUpLoggedInUser() {
 
-    // // set up global values for favText and favClass
-    // favText = FAV_TEXTNO;
-    // favClass = FAV_CLASS;
-
     showNavForLoggedInUser();
 
     // We have a story list. set the star and add the class so we can select
@@ -834,6 +743,7 @@ $(async function () {
     setFavoriteStories(currentUser.favorites, "span", "");
 
   }
+
 
   /* simple function to pull the hostname from a URL */
 
@@ -850,6 +760,7 @@ $(async function () {
     return hostName;
   }
 
+
   /* sync current user information to localStorage */
 
   function syncCurrentUserToLocalStorage() {
@@ -859,11 +770,3 @@ $(async function () {
     }
   }
 });
-
-function testFilter(inUserStories, inStoryId) {
-
-  inUserStories = inUserStories.filter(story => story.storyId !== inStoryId);
-
-  let ctr = 0;
-
-}

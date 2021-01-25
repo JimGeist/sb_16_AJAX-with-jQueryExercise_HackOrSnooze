@@ -35,15 +35,16 @@ class StoryList {
     return storyList;
   }
 
+
   /**
    * Method to make a POST request to /stories and add the new story to the list
-   * - user - the current instance of User who will post the story
+   * - inUser - the current instance of User who will post the story
    * - newStory - a new story object for the API with title, author, and url
    *
    * Returns the new story object
    */
 
-  static async addStory(inUser, newStory) {
+  static async addStory(inUser, inNewStory) {
     // TODO - Implement this functions!
     // this function should return the newly created story so it can be used in
     // the script.js file where it will be appended to the DOM
@@ -53,9 +54,9 @@ class StoryList {
       const response = await axios.post(`${BASE_URL}/stories`, {
         token: inUser.loginToken,
         story: {
-          author: newStory.author,
-          title: newStory.title,
-          url: newStory.url
+          author: inNewStory.author,
+          title: inNewStory.title,
+          url: inNewStory.url
         }
 
       });
@@ -90,8 +91,6 @@ class StoryList {
     });
 
     if (response.status === 200) {
-      console.log("in delete story api call: response=");
-      console.dir(response);
 
       // the story was deleted. We need to update inUser's ownStories by 
       //  removing the story that was just deleted.
@@ -102,10 +101,7 @@ class StoryList {
 
     }
 
-
   }
-
-
 
 }
 
@@ -162,12 +158,25 @@ class User {
    */
 
   static async login(username, password) {
-    const response = await axios.post(`${BASE_URL}/login`, {
-      user: {
-        username,
-        password
+
+    let response;
+
+    try {
+
+      response = await axios.post(`${BASE_URL}/login`, {
+        user: {
+          username,
+          password
+        }
+      });
+
+    } catch (error) {
+      // return the error components for display in the ui.
+      return {
+        error: error.response.data.error.title,
+        errMsg: error.response.data.error.message
       }
-    });
+    }
 
     // build a new User instance from the API response
     const existingUser = new User(response.data.user);
@@ -213,6 +222,13 @@ class User {
   }
 
 
+  /** Add a story to the logged-in user's favorite list
+   * 
+   * This function uses the logged-in user's username and authorization token to add the 
+   *  story id to the user's favorites. The existing instance of the user object is updated 
+   *  with the current list of favorites. 
+   *
+   */
   static async favoriteAdd(inCurrUser, inStoryId) {
 
     const response = await axios.post(`${BASE_URL}/users/${inCurrUser.username}/favorites/${inStoryId}`, {
@@ -221,12 +237,22 @@ class User {
 
     inCurrUser.favorites = response.data.user.favorites.map(s => new Story(s));
 
-    console.log("in favoriteAdd: response=");
-    console.dir(response);
+    // return the entire response object. The plan was to have the ui javascript check the status 
+    //  code and take appropriate action on whether the story was added as a favorite, but it seems 
+    //  if anything goes wrong, the error is intercepted by axios and this function never 
+    //  sees the non-200 response code.
     return response;
 
   }
 
+
+  /** Delete a story to the logged-in user's favorite list
+   * 
+   * This function uses the logged-in user's username and authorization token to delete the 
+   *  story id from the user's favorites. The existing instance of the user object is updated 
+   *  with the current list of favorites. 
+   *
+   */
   static async favoriteDelete(inCurrUser, inStoryId) {
 
     const response = await axios.delete(`${BASE_URL}/users/${inCurrUser.username}/favorites/${inStoryId}`, {
@@ -240,12 +266,23 @@ class User {
 
     inCurrUser.favorites = response.data.user.favorites.map(s => new Story(s));
 
-    console.log("in favoriteDelete: response=");
-    console.dir(response);
+    // return the entire response object. 
     return response;
 
   }
 
+
+  /** Checks whether a story exists in the 'favorites' list.
+   * 
+   * This function checks the storyId against the passed in story list. The function was written 
+   *  as a means to check for favorites, but instead of locking it into the favorites array on 
+   *  the user object, it instead uses the parameter array -- which could also be the user owned 
+   *  stories. 
+   * The function returns 
+   *  true when the story id was found in the array and 
+   *  false when the story id was not found in the array.
+   *
+   */
   static isFavorite(inFavStories, inStoryId) {
 
     // inFavStories is an array of story objects. We need to check whether 
@@ -256,7 +293,6 @@ class User {
     )
 
     return foundStory;
-
 
   }
 
