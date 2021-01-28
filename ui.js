@@ -15,19 +15,23 @@ $(async function () {
   const $navUserProfile = $("#nav-user-profile");
   const $sectUserProfile = $("#user-profile");
 
-  const IDPREFIX_FAV = "--fav--"; // prefix for Story Id in favorites list
-  const IDPREFIX_OWN = "--own--"; // prefix for Story Id in my stories list
+  const LOGIN_MSGCLS = "loginmsg";     // class aids in jQuery h4 message on login form
+  const CRTACCT_MSGCLS = "crtacctmsg"; // class aids in jQuery h4 message on create account form
 
-  const FAV_TEXTYES = "&#9733;";  // html filled star
-  const FAV_TEXTNO = "&#9734;";   // html empty star
-  const FAV_CLASS = "fav-ind";    // class aids in jQuery selection and has css formatting attached
-  const FAV_MSGCLASS = "fav-msg"; // class aids in jQuery selection has css formats attached
 
-  const OWN_MSGCLASS = "own-msg"; // class aids in jQuery selection has css formats attached
+  const IDPREFIX_FAV = "--fav--";  // prefix for Story Id in favorites list
+  const IDPREFIX_OWN = "--own--";  // prefix for Story Id in my stories list
 
-  const DEL_TEXT = "&otimes;";    // html X with a circle around it
-  const DEL_CLASS = "del-ind"     // class aids in jQuery selection and has css formatting attached
-  const DEL_SPAN = `<span class="${DEL_CLASS}">${DEL_TEXT}</span>`;
+  const FAV_TEXTYES = "&#9733;";   // html filled star
+  const FAV_TEXTNO = "&#9734;";    // html empty star
+  const FAV_CLS = "fav-ind";       // class aids in jQuery selection and has css formatting attached
+  const FAV_MSGCLS = "fav-msg";    // class aids in jQuery selection has css formats attached
+
+  const OWN_MSGCLS = "own-msg";    // class aids in jQuery selection has css formats attached
+
+  const DEL_TEXT = "&otimes;";     // html X with a circle around it
+  const DEL_CLS = "del-ind"        // class aids in jQuery selection and has css formatting attached
+  const DEL_SPAN = `<span class="${DEL_CLS}">${DEL_TEXT}</span>`;
 
   // global storyList variable
   let storyList = null;
@@ -46,38 +50,34 @@ $(async function () {
   $loginForm.on("submit", async function (evt) {
     evt.preventDefault(); // no page-refresh on submit
 
-    if ($(".loginmsg").length > 0) {
-      // clear the login message if it already exists on the form. 
-      // nbsp used so screen does not dance as the h4 element collapses because of no value
-      $(".loginmsg").html("&nbsp;");
-    }
+    // clear the login h4 error message if one exists
+    clearLoginOrCreateAcctMsg(LOGIN_MSGCLS);
+
     // grab the username and password
     const username = $("#login-username").val();
     const password = $("#login-password").val();
 
-    // call the login static method to build a user instance
-    const userInstance = await User.login(username, password);
+    // verify that login fields are non-blank and do not begin or end with a space
+    if (loginFieldsAreValid([username, password], "username and password",
+      $loginForm, LOGIN_MSGCLS)) {
 
-    if (userInstance.username) {
+      // call the login static method to build a user instance
+      const userInstance = await User.login(username, password);
 
-      // set the global user to the user instance
-      currentUser = userInstance;
+      if (userInstance.username) {
 
-      populateNavUserProfile();
-      syncCurrentUserToLocalStorage();
-      loginAndSubmitForm();
+        // set the global user to the user instance
+        currentUser = userInstance;
 
-    } else {
+        populateNavUserProfile();
+        syncCurrentUserToLocalStorage();
+        loginAndSubmitForm();
 
-      // An error occurred. We know this because if (userInstance.username)
-      //  tested as falsey and here we are.
-      const loginError = `${userInstance.error}: ${userInstance.errMsg}`;
-      if ($(".loginmsg").length === 0) {
-        // create the message element and populate it with the error message.
-        $loginForm.prepend(`<h4 class="loginmsg msg-error">${loginError}</h4>`);
       } else {
-        // message already exists, just update it
-        $(".loginmsg").text(loginError);
+
+        const loginError = `${userInstance.error}: ${userInstance.errMsg}`;
+        setLoginOrCreateAcctMsg($loginForm, LOGIN_MSGCLS, loginError);
+
       }
 
     }
@@ -93,18 +93,38 @@ $(async function () {
   $createAccountForm.on("submit", async function (evt) {
     evt.preventDefault(); // no page refresh
 
+    // clear the create account error h4 message if one exists
+    clearLoginOrCreateAcctMsg(CRTACCT_MSGCLS);
+
     // grab the required fields
     let name = $("#create-account-name").val();
     let username = $("#create-account-username").val();
     let password = $("#create-account-password").val();
 
-    // call the create method, which calls the API and then builds a new user instance
-    const newUser = await User.create(username, password, name);
-    currentUser = newUser;
+    // verify that create account fields (refered to as login fields) are non-blank and 
+    //  do not begin or end with a space
+    if (loginFieldsAreValid([name, username, password], "name, username, and password",
+      $createAccountForm, CRTACCT_MSGCLS)) {
 
-    populateNavUserProfile();
-    syncCurrentUserToLocalStorage();
-    loginAndSubmitForm();
+      // call the create method, which calls the API and then builds a new user instance
+      const newUser = await User.create(username, password, name);
+
+      if (newUser.username) {
+
+        currentUser = newUser;
+
+        populateNavUserProfile();
+        syncCurrentUserToLocalStorage();
+        loginAndSubmitForm();
+
+      } else {
+
+        const loginError = `${newUser.error}: ${newUser.errMsg}`;
+        setLoginOrCreateAcctMsg($createAccountForm, CRTACCT_MSGCLS, loginError);
+
+      }
+
+    }
 
   });
 
@@ -162,10 +182,11 @@ $(async function () {
 
   $navLogin.on("click", function () {
 
-    // delete the message element. It gets created if an error occurs while handling 
-    //  the submission of the login form 
-    $(".loginmsg").remove();
-    // Show the Login and Create Account Forms
+    // delete the h4 message elements and clear the input fields on both
+    //  login and create account forms 
+    clearLoginOrCreateAcctFields();
+
+    // Show / hide the Login and Create Account Forms
     $loginForm.slideToggle();
     $createAccountForm.slideToggle();
     $allStoriesList.toggle();
@@ -206,8 +227,8 @@ $(async function () {
     // displayArticles is a generic code block to process a list of articles on the user object. It gets a bit 
     //  crazy parameter-wise because generateStoryHTML is also reused for 3 list purposes, and we need to pass 
     //  values into displayArticles that are solely needed by generateStoryHTML. 
-    displayArticles($favStories, FAV_MSGCLASS, `There are no favorite articles tagged with a ${FAV_TEXTYES}.`,
-      currentUser.favorites, FAV_TEXTYES, `${FAV_CLASS} ${IDPREFIX_FAV}`, IDPREFIX_FAV);
+    displayArticles($favStories, FAV_MSGCLS, `There are no favorite articles tagged with a ${FAV_TEXTYES}.`,
+      currentUser.favorites, FAV_TEXTYES, `${FAV_CLS} ${IDPREFIX_FAV}`, IDPREFIX_FAV);
 
   })
 
@@ -219,8 +240,8 @@ $(async function () {
 
     hideSomeElements([$submitForm, $filteredArticles, $favStories, $loginForm, $createAccountForm, $sectUserProfile]);
 
-    displayArticles($ownStories, OWN_MSGCLASS, "You have not submitted any articles.",
-      currentUser.ownStories, FAV_TEXTNO, `${FAV_CLASS} ${IDPREFIX_OWN}`, IDPREFIX_OWN, DEL_SPAN);
+    displayArticles($ownStories, OWN_MSGCLS, "You have not submitted any articles.",
+      currentUser.ownStories, FAV_TEXTNO, `${FAV_CLS} ${IDPREFIX_OWN}`, IDPREFIX_OWN, DEL_SPAN);
 
     // my stories differs from favorites because we not only need the delete span in the list, but we also need to 
     //  determine whether any of the articles in the owned stories list are favorites. All the craziness of id
@@ -231,7 +252,7 @@ $(async function () {
       $("#my-articles").prepend(`<li><h4>Click on ${DEL_TEXT} to the left of the article to delete the article.</h4></li>`);
 
       // move the h4 with class inMsgClass that was created in displayArticles to the end of the list
-      const $h4Msg = $(`h4.${OWN_MSGCLASS}`).detach();
+      const $h4Msg = $(`h4.${OWN_MSGCLS}`).detach();
       $("#my-articles").append($h4Msg);
 
       // for my stories, we need to check the list and update the star to a favorite yes when 
@@ -339,7 +360,7 @@ $(async function () {
           title: addedStory.title,
           author: addedStory.author,
           username: addedStory.username
-        }, FAV_TEXTNO, FAV_CLASS));
+        }, FAV_TEXTNO, FAV_CLS));
 
         // Clear the inputs submit-form (article submission) inputs
         $("#author").val("");
@@ -363,7 +384,10 @@ $(async function () {
 
   $("body").on("click", "#nav-all", async function () {
     hideElements();
-    await generateStories();
+
+    //await generateStories();
+    await checkIfLoggedIn();
+
     $allStoriesList.show();
   });
 
@@ -374,7 +398,7 @@ $(async function () {
    *  favorites in the navigation bar, or from the owned stories listing from 
    *  'my stories' in the navigation bar.
    */
-  $("section.articles-container").on("click", `span.${FAV_CLASS}`, async function () {
+  $("section.articles-container").on("click", `span.${FAV_CLS}`, async function () {
 
     // a non-logged in person should not have span.fav-ind to click on since fav-ind is
     //  added once a login was successful. We will still check currentUser to ensure
@@ -388,10 +412,10 @@ $(async function () {
   /**
    * Event handler for clicking on the delete text beside the article. 
    */
-  $("section.articles-container").on("click", `span.${DEL_CLASS}`, async function () {
+  $("section.articles-container").on("click", `span.${DEL_CLS}`, async function () {
 
     // Deleting an article can only occur from the listing in 'my stories' from the 
-    //  navigation bar. The span with the DEL_CLASS class is included in the article list 
+    //  navigation bar. The span with the DEL_CLS class is included in the article list 
     //  when the list is build from the my stories list.
     // A non-logged in person should not have a means to see 'my stories' or submitted stories
     //  since authentication is required. We will still check currentUser to ensure it exists 
@@ -401,7 +425,7 @@ $(async function () {
       // clear the message -- it may have one if we already deleted a story. html is used because
       //  &nbsp; is used as a value for no message so the space never collapses when there is no 
       //  text.
-      $(`.${OWN_MSGCLASS}`).html("&nbsp;");
+      $(`.${OWN_MSGCLS}`).html("&nbsp;");
 
       // uiStoryId has the --own-- prefix, storyId does not.
       // storyId is used when deleting the story from the all stories list.
@@ -410,7 +434,7 @@ $(async function () {
 
       const delResult = await StoryList.deleteStory(currentUser, storyId);
 
-      if (delResult) {
+      if (delResult.status === 200) {
 
         // Remove the story from the my stories list.
         $(this).parent().remove();
@@ -418,13 +442,14 @@ $(async function () {
         $(`#${storyId}`).remove();
 
         // handy-dandy delete successful message. YOU NEED TO KEEP THE USER INFORMED.
-        $(`.${OWN_MSGCLASS}`).text(`'${delResult.data.story.title}' by ${delResult.data.story.author} was successfully deleted.`);
+        $(`.${OWN_MSGCLS}`).text(`'${delResult.data.story.title}' by ${delResult.data.story.author} was successfully deleted.`);
 
       } else {
-        console.log("delete of a story in 'my stories' was NOT successful");
+        // something unexpected happened and the story was not deleted.
+        $(`.${OWN_MSGCLS}`).text(`Selected story was NOT deleted. Error: ${delResult.response.data.error.status}: ${delResult.response.data.error.message}`);
 
       }
-      console.dir(delResult);
+
     }
   });
 
@@ -455,7 +480,7 @@ $(async function () {
       if (rot.status === 200) {
         // delete of favorite for current user was successful.
         // change the html for the article to an empty star (FAV_TEXTNO)
-        $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
+        $("#" + storyId).find(`span.${FAV_CLS}`).html(FAV_TEXTNO);
 
         // call the list handler to take care of the favorite displayed 
         //  displayed 'favorite' or displayed 'my stories' list.
@@ -467,11 +492,11 @@ $(async function () {
           // the user information from the api still has the story 
           //  as a favorite. Make sure the ui reflects this, even though
           //  attempts were made to unfavorite it.
-          $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTYES);
+          $("#" + storyId).find(`span.${FAV_CLS}`).html(FAV_TEXTYES);
         } else {
           // Not sure what the error was, but the user information from
           //  the api no longer has the story as a favorite.
-          $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
+          $("#" + storyId).find(`span.${FAV_CLS}`).html(FAV_TEXTNO);
         }
       }
 
@@ -483,7 +508,7 @@ $(async function () {
       if (rot.status === 200) {
         // Story was successfully added as a favorite for the user. 
         // Update the UI all articles list
-        $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTYES);
+        $("#" + storyId).find(`span.${FAV_CLS}`).html(FAV_TEXTYES);
 
         // We need to handle the favorite text on the favorites or the 
         //  my stories listings.
@@ -492,7 +517,7 @@ $(async function () {
       } else {
         // Kind of rendundant since the favorite text should already be
         //  textno.
-        $("#" + storyId).find(`span.${FAV_CLASS}`).html(FAV_TEXTNO);
+        $("#" + storyId).find(`span.${FAV_CLS}`).html(FAV_TEXTNO);
       }
 
     }
@@ -612,7 +637,7 @@ $(async function () {
 
       if ($(`.${IDPREFIX_FAV}`).length === 0) {
         // all favorites have been unfavorited.
-        $(`.${FAV_MSGCLASS}`).text("You have unfavorited all your favorites!!");
+        $(`.${FAV_MSGCLS}`).text("You have unfavorited all your favorites!!");
       }
     } else if ($ownStories.css("display") !== "none") {
 
@@ -621,6 +646,95 @@ $(async function () {
     }
 
   };
+
+
+  /**
+   * Function clears the text inputs on the login and create account forms and 
+   *  removes the h4 element, if any, that were created if errors occured during
+   *  login or account creation.
+   */
+  function clearLoginOrCreateAcctFields() {
+
+    // Clear Login Form values
+    $("#login-username").val("");
+    $("#login-password").val("");
+
+    // Clear Create Account Form values
+    $("#create-account-name").val("");
+    $("#create-account-username").val("");
+    $("#create-account-password").val("");
+
+    // remove h4 message element. It is recreated when an error occurs.
+    // message elements are selected by the class name.
+    $(`.${LOGIN_MSGCLS}`).remove();
+    $(`.${CRTACCT_MSGCLS}`).remove();
+
+  }
+
+
+  function clearLoginOrCreateAcctMsg(inMsgClass) {
+
+    if ($(`.${inMsgClass}`).length > 0) {
+      // clear the login or create account message if it already exists on the form. 
+      // &nbsp; used so screen does not 'dance' as the h4 element collapses because of no value
+      $(`.${inMsgClass}`).html("&nbsp;");
+    }
+
+  }
+
+
+  function setLoginOrCreateAcctMsg($inForm, inMsgClass, inErrorMsg) {
+
+    // Set the message text on either the login or create account forms
+    if ($(`.${inMsgClass}`).length === 0) {
+      // create the message element and populate it with the error message.
+      $inForm.prepend(`<h4 class="${inMsgClass} msg-error">${inErrorMsg}</h4>`);
+    } else {
+      // message already exists, just update it
+      $(`.${inMsgClass}`).text(inErrorMsg);
+    }
+
+  }
+
+
+  /**
+   * Function ensures that the input fields on the Login or Create Account forms are not blank and 
+   *  do not begin or end a space.
+   * inFieldArr - an array containing all the fields that require validation
+   * inMsgFieldNames - useful field names for the error message when required
+   * $inForm - the form we are validating. We need this because an h4 for the error message may not
+   *   exist and when an error occurs, we need to build the h4 and prepend it to the correct form.
+   * inMsgClass - the message class to associate with the message. The class is used as a selector.
+   * 
+   */
+  function loginFieldsAreValid(inFieldsArr, inMsgFieldNames, $inForm, inMsgClass) {
+
+    // check that every field in inFieldsArr has a length greater than 0 / is not blank
+    if (inFieldsArr.every(field => field.trim().length > 0)) {
+
+      // next check -- make sure every field in inFieldsArr do not begin or end with a space
+      if (inFieldsArr.every(field => field.trim().length === field.length)) {
+
+        // all fields are not blank and do not begin or end with a space. All is good.
+        return true;
+
+      } else {
+
+        // name or username or password contain leading and trailing spaces
+        setLoginOrCreateAcctMsg($inForm, inMsgClass, `${inMsgFieldNames} should not begin or end with a space.`);
+        return false;
+      }
+
+    } else {
+
+      // any one of the input fields are blank
+      setLoginOrCreateAcctMsg($inForm, inMsgClass, `Values are required for ${inMsgFieldNames}.`);
+
+      return false;
+
+    }
+
+  }
 
 
   /**
@@ -715,9 +829,9 @@ $(async function () {
     //  was > 0 and then performed $("#..").find(`span..`).html(FAV_TEXTYES)
     inFavorites.forEach(favStory => {
       // $("#" + favStory.storyId).find("span").html(FAV_TEXTYES);
-      // $("#" + favStory.storyId).find("span").addClass(FAV_CLASS);
+      // $("#" + favStory.storyId).find("span").addClass(FAV_CLS);
       $(`#${inIdPrefix}${favStory.storyId}`).find(inFindWhat).html(FAV_TEXTYES);
-      $(`#${inIdPrefix}${favStory.storyId}`).find(inFindWhat).addClass(FAV_CLASS);
+      $(`#${inIdPrefix}${favStory.storyId}`).find(inFindWhat).addClass(FAV_CLS);
     });
 
   }
@@ -737,7 +851,7 @@ $(async function () {
     //  the story for favoriting.
     $allStoriesList.find("span").html(FAV_TEXTNO);
     $allStoriesList.find("span").removeClass();
-    $allStoriesList.find("span").addClass(FAV_CLASS);
+    $allStoriesList.find("span").addClass(FAV_CLS);
 
     // set favorite text if any in list are a favorite.
     setFavoriteStories(currentUser.favorites, "span", "");

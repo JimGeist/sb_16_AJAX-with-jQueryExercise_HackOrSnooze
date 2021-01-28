@@ -61,8 +61,6 @@ class StoryList {
 
       });
 
-      console.dir(response);
-
       if (response.status === 201) {
         // The story was inserted by the user. We need to update the inUser object 
         //  ownStories with the story details return by the api.
@@ -81,25 +79,29 @@ class StoryList {
 
   static async deleteStory(inUser, inStoryId) {
 
-    const response = await axios.delete(`${BASE_URL}/stories/${inStoryId}`, {
-      headers: {
-        Authorization: "token"
-      },
-      data: {
-        token: inUser.loginToken
-      }
-    });
+    let response;
 
-    if (response.status === 200) {
+    try {
 
-      // the story was deleted. We need to update inUser's ownStories by 
-      //  removing the story that was just deleted.
-      const newOwnStories = inUser.ownStories.filter(story => story.storyId !== inStoryId);
-      inUser.ownStories = newOwnStories;
+      response = await axios.delete(`${BASE_URL}/stories/${inStoryId}`, {
+        headers: {
+          Authorization: "token"
+        },
+        data: {
+          token: inUser.loginToken
+        }
+      });
 
-      return response;
-
+    } catch (error) {
+      return error;
     }
+
+    // the story was deleted. We need to update inUser's ownStories by 
+    //  removing the story that was just deleted.
+    const newOwnStories = inUser.ownStories.filter(story => story.storyId !== inStoryId);
+    inUser.ownStories = newOwnStories;
+
+    return response;
 
   }
 
@@ -134,13 +136,26 @@ class User {
    */
 
   static async create(username, password, name) {
-    const response = await axios.post(`${BASE_URL}/signup`, {
-      user: {
-        username,
-        password,
-        name
+
+    let response;
+
+    try {
+
+      const response = await axios.post(`${BASE_URL}/signup`, {
+        user: {
+          username,
+          password,
+          name
+        }
+      });
+
+    } catch (error) {
+      // return the error components for display in the ui.
+      return {
+        error: error.response.data.error.title,
+        errMsg: error.response.data.error.message
       }
-    });
+    }
 
     // build a new User instance from the API response
     const newUser = new User(response.data.user);
